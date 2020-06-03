@@ -44,3 +44,7 @@
 /*/bin/
 /*/out/
 /*/cmake-build-*/
+
+### User specifics ###
+*.vcxproj.filters
+*.vcxproj.user
