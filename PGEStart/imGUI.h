@@ -15,6 +15,12 @@ namespace imgui
 		bool mouseDown;
 		int hotItem;
 		int activeItem;
+
+		int kbditem;
+		int keyentered;
+		int keymod;
+
+		int lastWidget;
 	};
 
 	class ImmediateModeGUI
@@ -31,13 +37,18 @@ namespace imgui
 		void Finish();
 
 		bool Button(int id, int x, int y, std::string sText);
+		int Slider(int id, int x, int y, int max, int& value);
+		int textfield(int id, int x, int y, std::string& sText);
 
 	private:
 		olc::PixelGameEngine* pge = nullptr;
 
 		int RegionHit(int x, int y, int w, int h);
+		void DisableTextEntry();
 	};
 
 }
 
-#endif
+#define GEN_ID (__LINE__)
+#endif // IM_GUI_DEF
+

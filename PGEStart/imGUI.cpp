@@ -1,13 +1,13 @@
+#pragma once
 #include "imGUI.h"
+#include "olcPixelGameEngine.h"
 
 namespace imgui
 {
 	ImmediateModeGUI::ImmediateModeGUI(olc::PixelGameEngine* _pge)
 	{
 		pge = _pge;
-		state.mouseDown = false;
-		state.activeItem = 0;
-		state.hotItem = 0;
+		state = { 0, 0, false, 0, 0, 0, 0, 0, 0 };
 	}
 	ImmediateModeGUI::~ImmediateModeGUI() { }
 
@@ -21,7 +21,7 @@ namespace imgui
 	/// <returns>Button pressed True/False</returns>
 	bool ImmediateModeGUI::Button(int id, int x, int y, std::string sText) {
 		olc::vi2d pos = { x, y };
-		olc::vi2d size = { 64, 48 };
+		olc::vi2d size = { pge->GetTextSize(sText).x+10, 48};
 
 		int length = sText.length();
 		olc::vi2d txtPos = { x + size.x / 2 - length * 4, y + size.y / 2 - 4 };
@@ -30,6 +30,7 @@ namespace imgui
 
 		if (RegionHit(x, y, size.x, size.y))
 		{
+			DisableTextEntry();
 			state.hotItem = id;
 			if (state.activeItem == 0 && state.mouseDown)
 			{
@@ -66,6 +67,140 @@ namespace imgui
 		}
 
 		return false;
+	}
+
+	int ImmediateModeGUI::Slider(int id, int x, int y, int max, int& value)
+	{
+		olc::vi2d pos = { x, y };
+		olc::vi2d size = { 32, 116 };
+
+		// Calculate mouse cursor's relative y offset
+		int ypos = ((100 - 16) * value) / max;
+
+		// Check for hotness
+		if (RegionHit(x + 8, y + 8, 16, 100))
+		{
+			DisableTextEntry();
+			state.hotItem = id;
+			if (state.activeItem == 0 && state.mouseDown)
+				state.activeItem = id;
+		}
+
+		// Render the scrollbar
+		pge->FillRect(pos, size, olc::GREY);
+
+		if (state.activeItem == id || state.hotItem == id)
+		{
+			pge->FillRect(pos + olc::vi2d{ 8, 8 + ypos }, olc::vi2d{ 16, 16 }, olc::VERY_DARK_GREY);
+		}
+		else
+		{
+			pge->FillRect(pos + olc::vi2d{ 8, 8 + ypos }, olc::vi2d{ 16, 16 }, olc::DARK_GREY);
+		}
+
+		// Update widget value
+		if (state.activeItem == id)
+		{
+			int mousepos = state.mouseY - (y + 8);
+			if (mousepos < 0) mousepos = 0;
+			if (mousepos > 100) mousepos = 100;
+			int v = (mousepos * max) / 100;
+			if (v != value)
+			{
+				value = v;
+				return 1;
+			}
+		}
+
+		return 0;
+	}
+
+	int ImmediateModeGUI::textfield(int id, int x, int y, std::string& sText)
+	{
+		olc::vi2d pos = { x, y };
+		std::string sTextRender = sText;
+		int changed = 0;
+
+		// Check for hotness
+		if (RegionHit(x - 4, y - 4, 30 * 14 + 8, 24 + 8))
+		{
+			state.hotItem = id;
+			if (state.activeItem == 0 && state.mouseDown)
+				state.activeItem = id;
+		}
+
+		// If we have keyboard focus, show it
+		if (state.kbditem == id) {
+			pge->FillRect(pos + olc::vi2d{ -6, -6 }, olc::vi2d{ 30 * 14 + 12, 24 + 12 }, olc::DARK_GREY);
+			// Render cursor if we have keyboard focus
+			sText = pge->TextEntryGetString();
+			sTextRender += "_";
+		}
+
+		// Render the text field
+		if (state.activeItem == id || state.hotItem == id)
+		{
+			pge->FillRect(pos + olc::vi2d{ -4, -4 }, olc::vi2d{ 30 * 14 + 8, 24 + 8 }, olc::GREY);
+		}
+		else
+		{
+			pge->FillRect(pos + olc::vi2d{ -4, -4 }, olc::vi2d{ 30 * 14 + 8, 24 + 8 }, olc::VERY_DARK_GREY);
+		}
+
+		pge->DrawString(olc::vi2d{ x, y }, sTextRender, olc::WHITE);
+
+		// If we have keyboard focus, we'll need to process the keys
+		/*
+		if (uistate.kbditem == id)
+		{
+			switch (uistate.keyentered)
+			{
+			case SDLK_TAB:
+				// If tab is pressed, lose keyboard focus.
+				// Next widget will grab the focus.
+				uistate.kbditem = 0;
+				// If shift was also pressed, we want to move focus
+				// to the previous widget instead.
+				if (uistate.keymod & KMOD_SHIFT)
+					uistate.kbditem = uistate.lastwidget;
+				// Also clear the key so that next widget
+				// won't process it
+				uistate.keyentered = 0;
+				break;
+			case SDLK_BACKSPACE:
+				if (len > 0)
+				{
+					len--;
+					buffer[len] = 0;
+					changed = 1;
+				}
+				break;
+			}
+			if (uistate.keychar >= 32 && uistate.keychar < 127 && len < 30)
+			{
+				buffer[len] = uistate.keychar;
+				len++;
+				buffer[len] = 0;
+				changed = 1;
+			}
+		}
+		*/
+
+		// If button is hot and active, but mouse button is not
+		// down, the user must have clicked the widget; give it 
+		// keyboard focus.
+		if (state.mouseDown == 0 &&
+			state.hotItem == id &&
+			state.activeItem == id) 
+		{
+			state.kbditem = id;
+
+			pge->TextEntryEnable(true, sText);
+		}
+
+		state.lastWidget = id;
+
+		return changed;
 	}
 
 	/// <summary>
@@ -109,5 +244,10 @@ namespace imgui
 			return 0;
 		}
 		return 1;
+	}
+
+	void ImmediateModeGUI::DisableTextEntry() {
+		state.kbditem = 0;
+		pge->TextEntryEnable(false);
 	}
 }
